@@ -73,7 +73,6 @@
             <version>0.7.3</version>
         </dependency>
 
-
         <!-- http client -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
