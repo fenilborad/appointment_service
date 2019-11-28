@@ -1,0 +1,235 @@
+package com.appointment.services;
+
+import com.appointment.dto.AppointmentPayload;
+import com.appointment.dto.AppointmentResponseDTO;
+import com.appointment.dto.AppointmentTimeslotsDTO;
+import com.appointment.entities.Appointment;
+import com.appointment.entities.DoctorAppointmentConfig;
+import com.appointment.entities.DoctorAppointmentStatus;
+import com.appointment.exceptions.DuplicateEntryException;
+import com.appointment.exceptions.EntitySaveFailureException;
+import com.appointment.helper.Response;
+import com.appointment.helper.ResponseHelper;
+import com.appointment.repositories.AppointmentRepository;
+import com.appointment.repositories.AppointmentStatusRepository;
+import com.appointment.repositories.DoctorAppointmentConfigRepository;
+import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class AppointmentServiceImpl implements AppointmentService {
+
+    private static final int PAGE_SIZE = 10;
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private AppointmentStatusRepository appointmentStatusRepository;
+
+    @Autowired
+    private DoctorAppointmentConfigRepository doctorAppointmentConfigRepository;
+
+    @Autowired
+    private ModelMapper modelMapper;
+
+    @Autowired
+    private MessageSource messageSource;
+
+    @Override
+    public Response findByDoctorCode(String doctorCode, int pageNum) {
+        Pageable firstPageWithTenElements = PageRequest.of(pageNum-1, PAGE_SIZE);
+
+        Page<Appointment> appointmentPage = appointmentRepository.findByDoctorCode(doctorCode,firstPageWithTenElements);
+
+        List<AppointmentResponseDTO> responseDTOList = appointmentPage.stream().sorted(Comparator.comparing(Appointment::getStartTime))
+                .map(appointment-> convertAppointmentToAppointmentResponseDTO(appointment))
+                .collect(Collectors.toList());
+
+        return ResponseHelper.sendSuccessResponse(responseDTOList,appointmentPage.getTotalPages(),appointmentPage.getTotalElements());
+    }
+
+    @Override
+    public Response save(AppointmentPayload payload) {
+        Appointment appointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTime(payload.getDoctorCode(),payload.getDate(),payload.getTime());
+        if(appointment!=null){
+            String errorMessage = messageSource.getMessage(
+                    "validation.appointmenttime.exist", new Object[]{}, Locale.ENGLISH);
+            throw new DuplicateEntryException(errorMessage);
+        }
+        Random random = new Random();
+        String appointmentUniqueCode = "AP-"+LocalDate.now().format(DateTimeFormatter.ofPattern("MMdd"))+"-"+ random.nextInt(1000);
+        appointment = new Appointment();
+        appointment.setDoctorCode(payload.getDoctorCode());
+        appointment.setUniqueCode(appointmentUniqueCode);
+        appointment.setPatientCode("PATIENT_CODE");
+        appointment.setDuration(30);
+        appointment.setAppointmentDate(payload.getDate());
+        appointment.setStartTime(payload.getTime());
+        appointment.setEndTime(payload.getTime().plusMinutes(30));
+        appointment.setInsertedAt(new Date());
+        DoctorAppointmentStatus statusAccepted = appointmentStatusRepository.findByDoctorCodeAndStatusName(payload.getDoctorCode(),"not_accepted");
+        appointment.setStatus(statusAccepted);
+        return ResponseHelper.sendSuccessResponse(this.convertAppointmentToAppointmentResponseDTO(appointmentRepository.save(appointment)));
+    }
+
+    private List getAvailableTimeSlotsList(String doctorCode, LocalDate date){
+        DoctorAppointmentConfig doctorAppointmentConfig = doctorAppointmentConfigRepository.findByDoctorCode(doctorCode);
+        LocalTime openTime = doctorAppointmentConfig.getOpenFrom();
+        LocalTime closeTime = doctorAppointmentConfig.getOpenTo();
+
+        List<Appointment> appointments = appointmentRepository.findByAppointmentDate(date).stream()
+                .sorted(Comparator.comparing(Appointment::getStartTime)).collect(Collectors.toList());
+
+        LocalTime slotEndTime;
+        List<TimeSlot> timeSlots = new ArrayList<>();
+        while(true){
+            TimeSlot currentTimeslot = new TimeSlot();
+            currentTimeslot.setFrom(openTime);
+            slotEndTime = openTime.plusMinutes(30);
+            currentTimeslot.setTo(slotEndTime);
+            timeSlots.add(currentTimeslot);
+            openTime = slotEndTime;
+            if(openTime==closeTime)
+                break;
+        }
+
+        List<TimeSlot> bookedSlots = new ArrayList<>();
+        for (Appointment appointment:appointments) {
+            TimeSlot bookedSlot = new TimeSlot();
+            bookedSlot.setFrom(appointment.getStartTime());
+            bookedSlot.setTo(appointment.getEndTime());
+            bookedSlots.add(bookedSlot);
+        }
+
+        timeSlots.removeAll(bookedSlots);
+        return timeSlots;
+    }
+
+    @Override
+    public Response getAvailableTimeSlots(String doctorCode, LocalDate date) {
+        AppointmentTimeslotsDTO appointmentTimeslotsDTO = new AppointmentTimeslotsDTO();
+        appointmentTimeslotsDTO.setTimeslots(getAvailableTimeSlotsList(doctorCode,date));
+        appointmentTimeslotsDTO.setDate(date);
+        appointmentTimeslotsDTO.setDoctorCode(doctorCode);
+        return ResponseHelper.sendSuccessResponse(appointmentTimeslotsDTO);
+    }
+
+    class TimeSlot{
+        private LocalTime from;
+        private LocalTime to;
+
+        public LocalTime getFrom() {
+            return from;
+        }
+
+        public void setFrom(LocalTime from) {
+            this.from = from;
+        }
+
+        public LocalTime getTo() {
+            return to;
+        }
+
+        public void setTo(LocalTime to) {
+            this.to = to;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if(!(obj instanceof TimeSlot)){
+                return false;
+            }
+            TimeSlot t= (TimeSlot)obj;
+            return this.from.equals(t.from) && this.to.equals(t.to);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.hashCode();
+        }
+    }
+
+    @Override
+    public Response cancelAppointment(Long id) {
+        Optional<Appointment> optionalAppointment= appointmentRepository.findById(id);
+        String appointmentCode = "";
+        String appointmentDate = "";
+        boolean isCancelled = false;
+        if(optionalAppointment.isPresent()){
+            Appointment appointment = optionalAppointment.get();
+            DoctorAppointmentStatus cancelled = appointmentStatusRepository.findByDoctorCodeAndStatusName(appointment.getDoctorCode(),"cancelled");
+            appointment.setStatus(cancelled);
+            appointment = appointmentRepository.save(appointment);
+            appointmentCode = appointment.getUniqueCode();
+            appointmentDate = appointment.getAppointmentDate().toString();
+            isCancelled = true;
+        }
+        if(isCancelled){
+            String successMessage = messageSource.getMessage("appointment.cancelled",new Object[]{appointmentCode, appointmentDate},Locale.ENGLISH);
+            return ResponseHelper.sendSuccessResponse(successMessage);
+        }else{
+            String errorMessage = messageSource.getMessage("appointment.cancel.fail",new Object[]{appointmentCode},Locale.ENGLISH);
+            throw new EntitySaveFailureException(errorMessage);
+        }
+    }
+
+    @Override
+    public Response rescheduleAppointment(Long id, LocalDate date, LocalTime starttime) {
+        Optional<Appointment> optionalAppointment= appointmentRepository.findById(id);
+        String appointmentCode = "";
+        String appointmentDate = "";
+        boolean isRescheduled = false;
+        if(optionalAppointment.isPresent()){
+            Appointment appointment = optionalAppointment.get();
+
+            Appointment updatedAppointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTime(
+                    appointment.getDoctorCode(),date,starttime);
+            if(updatedAppointment!=null){
+                String errorMessage = messageSource.getMessage("validation.appointmenttime.exist",new Object[]{},Locale.ENGLISH);
+                throw new EntitySaveFailureException(errorMessage);
+            }
+
+            DoctorAppointmentConfig doctorAppointmentConfig = doctorAppointmentConfigRepository.findByDoctorCode(appointment.getDoctorCode());
+            if(doctorAppointmentConfig!=null){
+                if(starttime.isAfter(doctorAppointmentConfig.getOpenTo()) || starttime.isBefore(doctorAppointmentConfig.getOpenFrom())){
+                    String fromTime = doctorAppointmentConfig.getOpenFrom().format(DateTimeFormatter.ofPattern("hh:mm a"));
+                    String toTime = doctorAppointmentConfig.getOpenTo().format(DateTimeFormatter.ofPattern("hh:mm a"));
+                    String errorMessage = messageSource.getMessage("validation.appointmenttime.outoftime",new Object[]{fromTime,toTime},Locale.ENGLISH);
+                    throw new EntitySaveFailureException(errorMessage);
+                }
+            }
+
+            DoctorAppointmentStatus notAccepted = appointmentStatusRepository.findByDoctorCodeAndStatusName(appointment.getDoctorCode(),"not_accepted");
+            appointment.setStatus(notAccepted);
+            appointment.setAppointmentDate(date);
+            appointment.setStartTime(starttime);
+            appointment.setEndTime(starttime.plusMinutes(30));
+            appointment = appointmentRepository.save(appointment);
+            appointmentCode = appointment.getUniqueCode();
+            appointmentDate = appointment.getAppointmentDate().toString();
+            isRescheduled = true;
+        }
+        if(isRescheduled){
+            String successMessage = messageSource.getMessage("appointment.rescheduled",new Object[]{appointmentCode, appointmentDate},Locale.ENGLISH);
+            return ResponseHelper.sendSuccessResponse(successMessage);
+        }else{
+            String errorMessage = messageSource.getMessage("appointment.rescheduled.fail",new Object[]{appointmentCode},Locale.ENGLISH);
+            throw new EntitySaveFailureException(errorMessage);
+        }
+    }
+
+    public AppointmentResponseDTO convertAppointmentToAppointmentResponseDTO(Appointment appointment){
+        return modelMapper.map(appointment, AppointmentResponseDTO.class);
+    }
+}
