@@ -17,4 +17,6 @@ public interface AppointmentService {
     Response cancelAppointment(Long id);
 
     Response rescheduleAppointment(Long id, LocalDate date, LocalTime starttime);
+
+    Response getSuggestedTimeSlots(String doctorCode, LocalDate date);
 }

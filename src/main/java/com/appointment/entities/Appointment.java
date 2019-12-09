@@ -10,7 +10,7 @@ import java.time.LocalTime;
 import java.util.Date;
 
 @Entity(name = "appointment")
-@Table(name = "appointment",uniqueConstraints = {@UniqueConstraint(columnNames = {"appointment_date","starttime"})})
+@Table(name = "appointment",uniqueConstraints = {@UniqueConstraint(columnNames = {"appointment_date","starttime","status_id"})})
 public class Appointment extends BaseEntity{
 
     @Id

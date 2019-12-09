@@ -3,13 +3,10 @@ package com.appointment.dto;
 import java.time.LocalDate;
 import java.util.List;
 
-public class AppointmentTimeslotsDTO {
-
+public class Suggesstion {
     private List timeslots;
 
     private LocalDate date;
-
-    private String doctorCode;
 
     public List getTimeslots() {
         return timeslots;
@@ -17,14 +14,6 @@ public class AppointmentTimeslotsDTO {
 
     public void setTimeslots(List timeslots) {
         this.timeslots = timeslots;
-    }
-
-    public String getDoctorCode() {
-        return doctorCode;
-    }
-
-    public void setDoctorCode(String doctorCode) {
-        this.doctorCode = doctorCode;
     }
 
     public LocalDate getDate() {

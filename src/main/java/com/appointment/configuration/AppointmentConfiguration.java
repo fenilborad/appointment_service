@@ -1,6 +1,8 @@
 package com.appointment.configuration;
 
+import com.appointment.helper.AppointmentIntercepter;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -22,10 +24,13 @@ import javax.sql.DataSource;
 import java.util.Locale;
 
 @Configuration
-@ComponentScan(basePackages = {"com.appointment.services"})
+@ComponentScan(basePackages = {"com.appointment.services","com.appointment.helper"})
 @EnableJpaRepositories(basePackages = {"com.appointment.repositories"})
 @EntityScan(basePackages = {"com.appointment.entities"})
 public class AppointmentConfiguration implements WebMvcConfigurer {
+
+   // @Autowired
+   // private AppointmentIntercepter appointmentIntercepter;
 
     @Bean
     @Primary
@@ -46,18 +51,6 @@ public class AppointmentConfiguration implements WebMvcConfigurer {
         sessionLocaleResolver.setDefaultLocale(Locale.US);
         return sessionLocaleResolver;
     }
-    @Bean
-    public LocaleChangeInterceptor localeChangeInterceptor() {
-        LocaleChangeInterceptor localeChangeInterceptor = new LocaleChangeInterceptor();
-        localeChangeInterceptor.setParamName("language");
-        return localeChangeInterceptor;
-    }
-
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(localeChangeInterceptor());
-    }
-
 
     @Bean
     public MessageSource messageSource() {
@@ -70,10 +63,28 @@ public class AppointmentConfiguration implements WebMvcConfigurer {
     }
 
     @Bean
+    public LocaleChangeInterceptor localeChangeInterceptor() {
+        LocaleChangeInterceptor localeChangeInterceptor = new LocaleChangeInterceptor();
+        localeChangeInterceptor.setParamName("language");
+        return localeChangeInterceptor;
+    }
+
+    @Bean
+    public AppointmentIntercepter appointmentIntercepter(){
+        return new AppointmentIntercepter();
+    }
+
+    @Bean
     public LocalValidatorFactoryBean getValidator() {
         LocalValidatorFactoryBean bean = new LocalValidatorFactoryBean();
         bean.setValidationMessageSource(messageSource());
         return bean;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(localeChangeInterceptor());
+        registry.addInterceptor(appointmentIntercepter());
     }
 
 }

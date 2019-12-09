@@ -39,7 +39,7 @@ CREATE TABLE appointment (
     status_id integer references doctor_appointment_status(id) NOT NULL,
     inserted_at timestamp,
     updated_at timestamp,
-    UNIQUE (appointment_date, starttime)
+    UNIQUE (appointment_date, starttime, status_id)
 );
 
 CREATE table doctor_appointment_config(

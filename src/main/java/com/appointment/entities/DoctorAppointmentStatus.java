@@ -115,4 +115,12 @@ public class DoctorAppointmentStatus extends BaseEntity {
         this.updatedBy = updatedBy;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        DoctorAppointmentStatus doctorAppointmentStatus = (DoctorAppointmentStatus) obj;
+        if(this.doctorCode.equals(doctorAppointmentStatus.doctorCode) && this.statusName.equals(doctorAppointmentStatus.statusName)){
+            return true;
+        }
+        return false;
+    }
 }

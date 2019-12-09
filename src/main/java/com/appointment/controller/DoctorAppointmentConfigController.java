@@ -26,4 +26,9 @@ public class DoctorAppointmentConfigController {
     public ResponseEntity save(@Valid @RequestBody DoctorAppointmentConfigPayload doctorAppointmentConfigPayload){
         return new ResponseEntity(doctorAppointmentConfigService.save(doctorAppointmentConfigPayload),HttpStatus.OK);
     }
+
+    @GetMapping(path = "/{doctorCode}")
+    public ResponseEntity getConfig(@PathVariable(name = "doctorCode") String doctorCode){
+        return new ResponseEntity(doctorAppointmentConfigService.getDoctorAppointmentConfig(doctorCode), HttpStatus.OK);
+    }
 }

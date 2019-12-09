@@ -46,4 +46,9 @@ public class DoctorAppointmentConfigServiceImpl implements DoctorAppointmentConf
                 "appointment.config.saved", new Object[]{}, Locale.ENGLISH);
         return ResponseHelper.sendSuccessResponse(successMessage);
     }
+
+    @Override
+    public Response getDoctorAppointmentConfig(String doctorCode) {
+        return ResponseHelper.sendSuccessResponse(doctorAppointmentConfigRepository.findByDoctorCode(doctorCode));
+    }
 }

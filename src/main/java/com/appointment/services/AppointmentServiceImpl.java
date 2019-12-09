@@ -1,11 +1,10 @@
 package com.appointment.services;
 
-import com.appointment.dto.AppointmentPayload;
-import com.appointment.dto.AppointmentResponseDTO;
-import com.appointment.dto.AppointmentTimeslotsDTO;
+import com.appointment.dto.*;
 import com.appointment.entities.Appointment;
 import com.appointment.entities.DoctorAppointmentConfig;
 import com.appointment.entities.DoctorAppointmentStatus;
+import com.appointment.entities.Weekdays;
 import com.appointment.exceptions.DuplicateEntryException;
 import com.appointment.exceptions.EntitySaveFailureException;
 import com.appointment.helper.Response;
@@ -13,6 +12,8 @@ import com.appointment.helper.ResponseHelper;
 import com.appointment.repositories.AppointmentRepository;
 import com.appointment.repositories.AppointmentStatusRepository;
 import com.appointment.repositories.DoctorAppointmentConfigRepository;
+import io.swagger.models.auth.In;
+import org.apache.commons.lang3.time.DateUtils;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -61,7 +62,8 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public Response save(AppointmentPayload payload) {
-        Appointment appointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTime(payload.getDoctorCode(),payload.getDate(),payload.getTime());
+        DoctorAppointmentStatus statusCancelled = appointmentStatusRepository.findByDoctorCodeAndStatusName(payload.getDoctorCode(),"cancelled");
+        Appointment appointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTimeAndStatusNot(payload.getDoctorCode(),payload.getDate(),payload.getTime(),statusCancelled);
         if(appointment!=null){
             String errorMessage = messageSource.getMessage(
                     "validation.appointmenttime.exist", new Object[]{}, Locale.ENGLISH);
@@ -88,7 +90,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         LocalTime openTime = doctorAppointmentConfig.getOpenFrom();
         LocalTime closeTime = doctorAppointmentConfig.getOpenTo();
 
-        List<Appointment> appointments = appointmentRepository.findByAppointmentDate(date).stream()
+        DoctorAppointmentStatus statusCancelled = appointmentStatusRepository.findByDoctorCodeAndStatusName(doctorCode,"cancelled");
+        List<Appointment> appointments = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStatusNot(doctorCode,date,statusCancelled).stream()
                 .sorted(Comparator.comparing(Appointment::getStartTime)).collect(Collectors.toList());
 
         LocalTime slotEndTime;
@@ -125,39 +128,43 @@ public class AppointmentServiceImpl implements AppointmentService {
         return ResponseHelper.sendSuccessResponse(appointmentTimeslotsDTO);
     }
 
-    class TimeSlot{
-        private LocalTime from;
-        private LocalTime to;
+    @Override
+    public Response getSuggestedTimeSlots(String doctorCode, LocalDate date){
 
-        public LocalTime getFrom() {
-            return from;
-        }
+        DoctorAppointmentConfig doctorAppointmentConfig = doctorAppointmentConfigRepository.findByDoctorCode(doctorCode);
+        Weekdays[] weekdays = doctorAppointmentConfig.getOpenDays();
+        List<Integer> weekdaysList = Arrays.stream(weekdays).map(Weekdays::getValue).collect(Collectors.toList());
 
-        public void setFrom(LocalTime from) {
-            this.from = from;
-        }
+        LocalDate nextDate = date;
+        int numOfDays=0;
+        List<LocalDate> datesToSuggest = new ArrayList<>();
+        while(true){
+            if(numOfDays == 7)
+                break;
 
-        public LocalTime getTo() {
-            return to;
-        }
-
-        public void setTo(LocalTime to) {
-            this.to = to;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if(!(obj instanceof TimeSlot)){
-                return false;
+            if(weekdaysList.contains(nextDate.getDayOfWeek().getValue())){
+                numOfDays++;
+                datesToSuggest.add(nextDate);
+                System.out.println("Date-------->"+nextDate);
+                System.out.println("Day-------->"+nextDate.getDayOfWeek().name());
             }
-            TimeSlot t= (TimeSlot)obj;
-            return this.from.equals(t.from) && this.to.equals(t.to);
+            nextDate = nextDate.plusDays(1);
         }
 
-        @Override
-        public int hashCode() {
-            return this.hashCode();
-        }
+        List<Suggesstion> suggestionList = new ArrayList<>();
+
+        datesToSuggest.stream().forEach(i -> {
+            Suggesstion suggesstion = new Suggesstion();
+            suggesstion.setTimeslots(this.getAvailableTimeSlotsList(doctorCode,i));
+            suggesstion.setDate(i);
+            suggestionList.add(suggesstion);
+        });
+
+        TimeslotSuggestionResponseDto timeslotSuggestion = new TimeslotSuggestionResponseDto();
+        timeslotSuggestion.setSuggestions(suggestionList);
+        timeslotSuggestion.setDays(numOfDays);
+        timeslotSuggestion.setDoctorCode(doctorCode);
+        return ResponseHelper.sendSuccessResponse(timeslotSuggestion);
     }
 
     @Override
@@ -192,10 +199,14 @@ public class AppointmentServiceImpl implements AppointmentService {
         boolean isRescheduled = false;
         if(optionalAppointment.isPresent()){
             Appointment appointment = optionalAppointment.get();
-
-            Appointment updatedAppointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTime(
-                    appointment.getDoctorCode(),date,starttime);
-            if(updatedAppointment!=null){
+            DoctorAppointmentStatus cancelled = appointmentStatusRepository.findByDoctorCodeAndStatusName(appointment.getDoctorCode(),"cancelled");
+            if(cancelled.equals(appointment.getStatus())){
+                String errorMessage = messageSource.getMessage("appointment.reschedule.cancelled",new Object[]{},Locale.ENGLISH);
+                throw new EntitySaveFailureException(errorMessage);
+            }
+            Appointment updatedAppointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTimeAndStatusNot(
+                    appointment.getDoctorCode(),date,starttime,cancelled);
+            if(updatedAppointment!=null && appointment.getId() != updatedAppointment.getId()){
                 String errorMessage = messageSource.getMessage("validation.appointmenttime.exist",new Object[]{},Locale.ENGLISH);
                 throw new EntitySaveFailureException(errorMessage);
             }

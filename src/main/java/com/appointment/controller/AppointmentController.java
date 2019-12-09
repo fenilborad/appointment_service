@@ -28,18 +28,26 @@ public class AppointmentController {
         return new ResponseEntity(response, HttpStatus.OK);
     }
 
-    @GetMapping(value ="/{doctor_code}/{page_number}",produces = {"application/json; charset=UTF-8"})
-    public ResponseEntity getAppointments(@PathVariable(name = "doctor_code") String doctorCode, @PathVariable(name = "page_number") int pageNumber){
+    @GetMapping(value ="/{page_number}",produces = {"application/json; charset=UTF-8"})
+    public ResponseEntity getAppointments(@RequestParam(name = "doctor_code") String doctorCode, @PathVariable(name = "page_number") int pageNumber){
         //Later, the Authentication Token will be passed to collect the list of appointments of particular doctor.
         return new ResponseEntity(appointmentService.findByDoctorCode(doctorCode,pageNumber), HttpStatus.OK);
 
     }
 
-    @GetMapping(value ="/timeslots/{doctor_code}",produces = {"application/json; charset=UTF-8"})
-    public ResponseEntity getAvailableAppointmentSlots(@PathVariable(name = "doctor_code") String doctorCode,
+    @GetMapping(value ="/timeslots",produces = {"application/json; charset=UTF-8"})
+    public ResponseEntity getAvailableAppointmentSlots(@RequestParam(name = "doctor_code") String doctorCode,
                                                        @RequestParam(name = "date") @DateTimeFormat(pattern = "MM-dd-yyyy") LocalDate date){
         //Later, the Authentication Token will be passed to collect the list of appointments of particular doctor.
         return new ResponseEntity(appointmentService.getAvailableTimeSlots(doctorCode,date), HttpStatus.OK);
+
+    }
+
+    @GetMapping(value ="/timeslots/suggestions",produces = {"application/json; charset=UTF-8"})
+    public ResponseEntity getSuggestedAppointmentSlots(@RequestParam(name = "doctor_code") String doctorCode,
+                                                       @RequestParam(name = "date") @DateTimeFormat(pattern = "MM-dd-yyyy") LocalDate date){
+        //Later, the Authentication Token will be passed to collect the list of appointments of particular doctor.
+        return new ResponseEntity(appointmentService.getSuggestedTimeSlots(doctorCode,date), HttpStatus.OK);
 
     }
 
