@@ -12,8 +12,7 @@ import com.appointment.helper.ResponseHelper;
 import com.appointment.repositories.AppointmentRepository;
 import com.appointment.repositories.AppointmentStatusRepository;
 import com.appointment.repositories.DoctorAppointmentConfigRepository;
-import io.swagger.models.auth.In;
-import org.apache.commons.lang3.time.DateUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -42,6 +41,9 @@ public class AppointmentServiceImpl implements AppointmentService {
     private DoctorAppointmentConfigRepository doctorAppointmentConfigRepository;
 
     @Autowired
+    private RegistrationService registrationService;
+
+    @Autowired
     private ModelMapper modelMapper;
 
     @Autowired
@@ -62,6 +64,23 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public Response save(AppointmentPayload payload) {
+        PatientResponseEntity patientResponseEntity = registrationService.getPatientByEmail(payload.getEmail());
+        String patientCode = StringUtils.EMPTY;
+        if(patientResponseEntity != null){
+            patientCode = patientResponseEntity.getPatientCode();
+        }else{
+            PatientRegistrationPayload patientRegistrationPayload = new PatientRegistrationPayload();
+            patientRegistrationPayload.setEmail(payload.getEmail());
+            patientRegistrationPayload.setFirstName(payload.getPatientName());
+            patientRegistrationPayload.setLastName(payload.getPatientLastName());
+            patientRegistrationPayload.setPhone(payload.getPhone());
+
+            PatientResponseEntity response = registrationService.registration(patientRegistrationPayload);
+            if(response!=null){
+                patientCode = response.getPatientCode();
+            }
+        }
+
         DoctorAppointmentStatus statusCancelled = appointmentStatusRepository.findByDoctorCodeAndStatusName(payload.getDoctorCode(),"cancelled");
         Appointment appointment = appointmentRepository.findByDoctorCodeAndAppointmentDateAndStartTimeAndStatusNot(payload.getDoctorCode(),payload.getDate(),payload.getTime(),statusCancelled);
         if(appointment!=null){
@@ -74,7 +93,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment = new Appointment();
         appointment.setDoctorCode(payload.getDoctorCode());
         appointment.setUniqueCode(appointmentUniqueCode);
-        appointment.setPatientCode("PATIENT_CODE");
+        appointment.setPatientCode(patientCode);
         appointment.setDuration(30);
         appointment.setAppointmentDate(payload.getDate());
         appointment.setStartTime(payload.getTime());
@@ -145,8 +164,6 @@ public class AppointmentServiceImpl implements AppointmentService {
             if(weekdaysList.contains(nextDate.getDayOfWeek().getValue())){
                 numOfDays++;
                 datesToSuggest.add(nextDate);
-                System.out.println("Date-------->"+nextDate);
-                System.out.println("Day-------->"+nextDate.getDayOfWeek().name());
             }
             nextDate = nextDate.plusDays(1);
         }

@@ -2,7 +2,6 @@ package com.appointment.configuration;
 
 import com.appointment.helper.AppointmentIntercepter;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -15,6 +14,7 @@ import org.springframework.context.support.ReloadableResourceBundleMessageSource
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.LocaleResolver;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.i18n.LocaleChangeInterceptor;
@@ -27,7 +27,7 @@ import java.util.Locale;
 @ComponentScan(basePackages = {"com.appointment.services","com.appointment.helper"})
 @EnableJpaRepositories(basePackages = {"com.appointment.repositories"})
 @EntityScan(basePackages = {"com.appointment.entities"})
-public class AppointmentConfiguration implements WebMvcConfigurer {
+public class AppointmentConfiguration {
 
    // @Autowired
    // private AppointmentIntercepter appointmentIntercepter;
@@ -81,10 +81,19 @@ public class AppointmentConfiguration implements WebMvcConfigurer {
         return bean;
     }
 
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(localeChangeInterceptor());
-        registry.addInterceptor(appointmentIntercepter());
-    }
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/**").allowedOrigins("*").allowedMethods("GET", "POST").allowedHeaders("*");
+            }
 
+            @Override
+            public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(localeChangeInterceptor());
+                registry.addInterceptor(appointmentIntercepter()).excludePathPatterns("/api/v1/appointment");
+            }
+        };
+    }
 }

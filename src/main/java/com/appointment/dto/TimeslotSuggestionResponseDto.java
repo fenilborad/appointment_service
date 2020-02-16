@@ -1,6 +1,5 @@
 package com.appointment.dto;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public class TimeslotSuggestionResponseDto{

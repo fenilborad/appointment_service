@@ -9,7 +9,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
 import javax.servlet.http.HttpServletRequest;
@@ -26,6 +25,10 @@ public class AppointmentIntercepter extends HandlerInterceptorAdapter {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        if(request.getMethod().toUpperCase().equals("POST")){
+            //Don't intercept.
+            return true;
+        }
         String doctorCode = request.getParameter("doctor_code");
         if(doctorCode == null || doctorCode.equals(StringUtils.EMPTY)){
             //throw new HeaderMissingException(messageSource.getMessage("doctor.code.missing",new Object[]{}, Locale.ENGLISH));

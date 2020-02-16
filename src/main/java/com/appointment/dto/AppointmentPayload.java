@@ -13,6 +13,10 @@ public class AppointmentPayload {
     @NotBlank(message = "{validation.patientcode.required}")
     private String patientName;
 
+
+    @Pattern(regexp = "^([a-zA-Z]*)$")
+    private String patientLastName;
+
     @NotEmpty(message = "{validation.uiquecode.required}")
     @NotBlank(message = "{validation.uiquecode.required}")
     private String doctorCode;
@@ -82,5 +86,13 @@ public class AppointmentPayload {
 
     public void setTime(LocalTime time) {
         this.time = time;
+    }
+
+    public String getPatientLastName() {
+        return patientLastName;
+    }
+
+    public void setPatientLastName(String patientLastName) {
+        this.patientLastName = patientLastName;
     }
 }
